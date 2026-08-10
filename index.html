@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Brek Systems LLC</title>
+  <meta name="description" content="Brek Systems LLC is a Michigan software studio. Builder and operator of Global Plaza, a 3D shopping and social platform.">
+  <style>
+    :root{
+      --paper:#f5f0e8; --ink:#1d1d1d; --faint:rgba(29,29,29,.35);
+    }
+    *{box-sizing:border-box;}
+    html,body{height:100%;margin:0;}
+    body{
+      background:var(--paper); color:var(--ink);
+      font-family:'Space Mono',ui-monospace,'SF Mono',Menlo,monospace;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      gap:34px; padding:32px; text-align:center;
+    }
+    h1{
+      font-size:clamp(20px,4.5vw,30px); font-weight:700;
+      letter-spacing:.34em; margin:0; text-transform:uppercase;
+      padding-left:.34em; /* optically recenters tracked type */
+    }
+    .rule{width:56px; height:1px; background:var(--ink); opacity:.4;}
+    p{
+      font-size:12px; line-height:2; letter-spacing:.08em;
+      max-width:520px; margin:0; opacity:.75;
+    }
+    .work{
+      display:inline-flex; align-items:center; gap:10px;
+      font-size:11px; font-weight:700; letter-spacing:.22em; text-transform:uppercase;
+      color:var(--ink); text-decoration:none;
+      border:1px solid var(--ink); border-radius:999px; padding:14px 26px;
+      transition:background .18s,color .18s;
+    }
+    .work:hover{background:var(--ink); color:var(--paper);}
+    footer{
+      position:fixed; left:0; right:0; bottom:26px;
+      font-size:10px; letter-spacing:.14em; text-transform:uppercase; opacity:.45;
+    }
+    footer a{color:inherit; text-decoration:none; border-bottom:1px solid var(--faint);}
+  </style>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <h1>Brek Systems</h1>
+  <div class="rule"></div>
+  <p>
+    A software studio in Michigan. We design and operate consumer platforms
+    at the meeting point of commerce, 3D worlds, and community.
+  </p>
+  <a class="work" href="https://www.global-plaza.com">Our work &mdash; Global Plaza</a>
+  <footer>
+    Brek Systems LLC &middot; West Bloomfield, Michigan &middot;
+    <a href="mailto:hello@breksystems.com">hello@breksystems.com</a>
+  </footer>
+</body>
+</html>
