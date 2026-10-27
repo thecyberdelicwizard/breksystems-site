@@ -1382,8 +1382,9 @@
 
   // 14. Onion Skin
   {
-    const N = SEQ_ALL.length, TL_W = 180, IDLE = 3, AUTO_STEP = 0.3, AUTO_HOLD = 3, RETURN = 0.6, LAYER_FADE = 0.12;
-    const TICKS = ['2017', '2018', '2020', 'CIRCUIT', 'PIXEL', 'LATTICE', '2022', 'NOW'];
+    const SEQ = SEQ_ALL.filter(id => id !== 'star-2022');
+    const N = SEQ.length, TL_W = 180, IDLE = 3, AUTO_STEP = 0.3, AUTO_HOLD = 3, RETURN = 0.6, LAYER_FADE = 0.12;
+    const TICKS = ['2017', '2018', '2020', 'CIRCUIT', 'PIXEL', 'LATTICE', 'NOW'];
     let st;
 
     const tlY = () => L.oy + L.lh + 26;
@@ -1425,7 +1426,7 @@
       loop: Infinity,
       phases: { inEnd: Infinity, holdEnd: Infinity, outEnd: Infinity },
       onLoop(env) {
-        st = { idx: N - 1, alpha: SEQ_ALL.map((_, i) => (i === N - 1 ? 1 : 0)), dotX: null, mode: 'idle', at: env.now, lastMove: env.now, autoT: 0, from: 0, staticIdx: N - 1 };
+        st = { idx: N - 1, alpha: SEQ.map((_, i) => (i === N - 1 ? 1 : 0)), dotX: null, mode: 'idle', at: env.now, lastMove: env.now, autoT: 0, from: 0, staticIdx: N - 1 };
       },
       input: {
         down(pt, env) {
@@ -1476,9 +1477,9 @@
           st.alpha[i] = st.alpha[i] < target ? Math.min(target, st.alpha[i] + step) : Math.max(target, st.alpha[i] - step);
         }
         for (let i = 0; i < N; i++) {
-          if (i !== st.idx && st.alpha[i] > 0.001) drawMark(ctx, SEQ_ALL[i], { alpha: st.alpha[i] });
+          if (i !== st.idx && st.alpha[i] > 0.001) drawMark(ctx, SEQ[i], { alpha: st.alpha[i] });
         }
-        drawMark(ctx, SEQ_ALL[st.idx]);
+        drawMark(ctx, SEQ[st.idx]);
 
         const target = tickX(st.idx);
         st.dotX = st.dotX === null ? target : st.dotX + (target - st.dotX) * (1 - Math.pow(0.7, env.dt * 60));
@@ -1486,7 +1487,7 @@
       },
       drawStatic(ctx) {
         const i = st ? st.staticIdx : N - 1;
-        drawMark(ctx, SEQ_ALL[i]);
+        drawMark(ctx, SEQ[i]);
         if (!st) return;
         const saved = st.idx;
         st.idx = i;
