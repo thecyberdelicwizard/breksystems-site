@@ -82,6 +82,7 @@
       line-height: 1;
     }
     .controls button:hover { border-color: #ffffffb3; }
+    .controls #size:disabled { display: none; }
     .controls button:focus-visible { outline: 1px solid #fff; outline-offset: 2px; }
     .controls button[aria-pressed="true"] { background: #fff; color: #000; border-color: #fff; }
     .controls .opt small {
@@ -92,8 +93,8 @@
     }
     .controls .sep { width: 6px; }
     @media (max-width: 440px) {
-      .controls { gap: 5px; padding: 0 8px; }
-      .controls button { min-width: 36px; padding: 0 7px; }
+      .controls { gap: 4px; padding: 0 6px; }
+      .controls button { min-width: 32px; padding: 0 6px; }
       .controls .sep { width: 0; }
     }
   </style>
@@ -115,6 +116,7 @@
     <button class="opt" data-i="2" aria-pressed="false" title="Scan Log (hover)">3<small>HOVER</small></button>
     <button class="opt" data-i="3" aria-pressed="false" title="Blueprint">4</button>
     <button class="opt" data-i="4" aria-pressed="false" title="Star Burst">5</button>
+    <button class="opt" data-i="5" aria-pressed="false" title="Final (Clean Sweep + streaks)">6<small>FINAL</small></button>
     <span class="sep"></span>
     <button id="replay" title="Replay (R)">Replay</button>
     <button id="size" title="Toggle logo size">Large</button>
@@ -229,7 +231,7 @@
     canvas.height = buf.height = Math.round(vh * dpr);
     canvas.style.width = vw + 'px';
     canvas.style.height = vh + 'px';
-    const S = sizeMode === 'site'
+    const S = (STYLES[current]?.size || sizeMode) === 'site'
       ? clamp(vw * 0.18, 72, 120)          // same rule as the homepage .mark
       : Math.max(72, Math.min(vw * 0.62, (vh - 190) * 0.85, 340));
     const s = S / MARK_W, lw = S, lh = MARK_H * s;
@@ -265,21 +267,33 @@
     const d = dur - st * MAX_G;
     return clamp01((t - start - g * st) / d);
   }
+  function stdGeom(r, t, c) {
+    if (t < c.holdEnd) {
+      const p = stag(t, c.inStart, c.inDur, c.inSt, r.g);
+      if (p <= 0) return null;
+      const e = EASE_IN(p);
+      return enterGeom(r, e, 0.2 + 0.8 * e);
+    }
+    const p = stag(t, c.holdEnd, c.outDur, c.outSt, r.g);
+    if (p >= 1) return null;
+    return exitGeom(r, EASE_OUT(p));
+  }
   function drawStdBars(ctx, t, c) {
     for (const r of L.rects) {
-      let geom;
-      if (t < c.holdEnd) {
-        const p = stag(t, c.inStart, c.inDur, c.inSt, r.g);
-        if (p <= 0) continue;
-        const e = EASE_IN(p);
-        geom = enterGeom(r, e, 0.2 + 0.8 * e);
-      } else {
-        const p = stag(t, c.holdEnd, c.outDur, c.outSt, r.g);
-        if (p >= 1) continue;
-        geom = exitGeom(r, EASE_OUT(p));
-      }
-      ctx.fillRect(geom.x, r.y, geom.w, r.h);
+      const geom = stdGeom(r, t, c);
+      if (geom) ctx.fillRect(geom.x, r.y, geom.w, r.h);
     }
+  }
+  // Motion-blur ghost trailing a moving line, sized from its per-frame travel.
+  function drawStreak(ctx, r, g, g0, rgb) {
+    const v = g0 ? Math.abs((g.x + g.w) - (g0.x + g0.w)) : 0;
+    const len = Math.min(v * 4, L.vw * 0.6);
+    if (len <= 2) return;
+    const grad = ctx.createLinearGradient(g.x - len, 0, g.x, 0);
+    grad.addColorStop(0, `rgba(${rgb},0)`);
+    grad.addColorStop(1, `rgba(${rgb},0.45)`);
+    ctx.fillStyle = grad;
+    ctx.fillRect(g.x - len, r.y + r.h * 0.2, len, r.h * 0.6);
   }
   function drawStaticBars(ctx) {
     for (const r of L.rects) ctx.fillRect(r.x, r.y, r.w, r.h);
@@ -735,18 +749,7 @@
           const g = geomAt(r, t);
           if (!g) continue;
           const moving = t < IN || t >= OUT_START;
-          if (moving) {
-            const g0 = geomAt(r, prevT);
-            const v = g0 ? Math.abs((g.x + g.w) - (g0.x + g0.w)) : 0;
-            const len = Math.min(v * 4, L.vw * 0.6);
-            if (len > 2) {
-              const grad = ctx.createLinearGradient(g.x - len, 0, g.x, 0);
-              grad.addColorStop(0, 'rgba(255,255,255,0)');
-              grad.addColorStop(1, 'rgba(255,255,255,0.45)');
-              ctx.fillStyle = grad;
-              ctx.fillRect(g.x - len, r.y + r.h * 0.2, len, r.h * 0.6);
-            }
-          }
+          if (moving) drawStreak(ctx, r, g, geomAt(r, prevT), '255,255,255');
           ctx.fillStyle = '#fff';
           ctx.fillRect(g.x, r.y, g.w, r.h);
         }
@@ -761,6 +764,32 @@
           flashedLoop = env.loopIndex;
           main.fillStyle = '#fff';
           main.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      },
+    });
+  }
+
+  // 6. Final: Clean Sweep timing with Star Burst's streak trails, at the
+  // homepage's size and in the homepage mark's cream.
+  {
+    const c = { inStart: 0, inDur: 1.2, inSt: 0.08, holdEnd: 3.2, outDur: 1.0, outSt: 0.08 };
+    const RGB = '245,240,232';
+    STYLES.push({
+      name: 'Final',
+      loop: 4.5,
+      size: 'site',
+      color: '#F5F0E8',
+      phases: { inEnd: 1.2, holdEnd: 3.2, outEnd: 4.2 },
+      draw(ctx, env) {
+        const t = env.t;
+        const moving = t < c.inStart + c.inDur || t >= c.holdEnd;
+        const prevT = Math.max(0, t - 1 / 60);
+        for (const r of L.rects) {
+          const g = stdGeom(r, t, c);
+          if (!g) continue;
+          if (moving) drawStreak(ctx, r, g, stdGeom(r, prevT, c), RGB);
+          ctx.fillStyle = this.color;
+          ctx.fillRect(g.x, r.y, g.w, r.h);
         }
       },
     });
@@ -820,7 +849,10 @@
     els.name.textContent = s.name;
     els.tag.textContent = s.hover ? (hoverAllowed() ? (hoverMQ.matches ? '· hover the logo during the hold' : '· tap or drag the logo during the hold') : '· hover off (reduced motion)') : '';
     els.opts.forEach((b, k) => b.setAttribute('aria-pressed', String(k === current)));
+    els.size.disabled = !!s.size;
+    els.size.textContent = s.size ? 'Site size' : (sizeMode === 'large' ? 'Large' : 'Site size');
     history.replaceState(null, '', '#' + (current + 1));
+    layout();
     restart();
   }
 
@@ -841,7 +873,7 @@
     bctx.fillRect(0, 0, L.vw, L.vh);
 
     if (!motionOn()) {
-      bctx.fillStyle = '#fff';
+      bctx.fillStyle = s.color || '#fff';
       drawStaticBars(bctx);
       main.setTransform(1, 0, 0, 1, 0, 0);
       main.drawImage(buf, 0, 0);
@@ -934,7 +966,7 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'ArrowRight') { select(current + 1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { select(current - 1); e.preventDefault(); }
-    else if (/^[1-5]$/.test(e.key)) select(+e.key - 1);
+    else if (/^[1-6]$/.test(e.key)) select(+e.key - 1);
     else if (e.key === 'r' || e.key === 'R') restart();
   });
   window.addEventListener('resize', () => { layout(); });
@@ -949,7 +981,7 @@
   layout();
   updateNote();
   const fromHash = parseInt(location.hash.slice(1), 10);
-  select(fromHash >= 1 && fromHash <= STYLES.length ? fromHash - 1 : 0);
+  select(fromHash >= 1 && fromHash <= STYLES.length ? fromHash - 1 : STYLES.length - 1);
   requestAnimationFrame(tick);
 })();
 </script>
