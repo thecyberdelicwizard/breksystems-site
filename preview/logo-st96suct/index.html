@@ -130,6 +130,11 @@
       <button class="opt" data-i="9" aria-pressed="false" title="Glitch Swap">10</button>
       <button class="opt" data-i="10" aria-pressed="false" title="Ghost Stack">11</button>
     </div>
+    <div class="grp" role="group" aria-label="Wild">
+      <span class="glabel">WILD</span>
+      <button class="opt" data-i="11" aria-pressed="false" title="Signal Hunt">12</button>
+      <button class="opt" data-i="12" aria-pressed="false" title="Exploded Archive">13</button>
+    </div>
     <div class="grp">
       <button id="replay" title="Replay (R)">Replay</button>
       <button id="size" title="Toggle logo size">Large</button>
@@ -819,8 +824,6 @@
   const MARKS = {
     'star-2017': { src: 'marks/star-2017.svg', label: ['BREK_STAR', '2017'] },
     'star-2018': { src: 'marks/star-2018.svg', label: ['BREK_STAR', '2018'] },
-    'wordmark-2019': { src: 'marks/wordmark-brek-systems-2019.png', label: ['BREK_WORDMARK', '2019'] },
-    'star-2018-boxed': { src: 'marks/star-2018-boxed.svg', label: ['BREK_STAR_BOXED', '2018'] },
     'star-2020': { src: 'marks/star-2020.svg', label: ['BREK_STAR', '2020'] },
     'star-circuit': { src: 'marks/star-circuit.svg', label: ['BREK_STAR_CIRCUIT', '----'] },
     'star-pixel': { src: 'marks/star-pixel.svg', label: ['BREK_STAR_PIXEL', '----'] },
@@ -832,11 +835,13 @@
         BARS.map(b => `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/>`).join('') + '</svg>'),
     },
   };
-  const SEQ_FULL = ['star-2017', 'star-2018', 'wordmark-2019', 'star-2018-boxed', 'star-2020',
-    'star-circuit', 'star-pixel', 'star-mindz-eye-lattice', 'star-2022'];
-  const SEQ_GHOST = ['star-2017', 'star-2018', 'star-2020', 'star-circuit', 'star-pixel',
+  // Only cream line-work on transparent may appear here; check_marks.py
+  // enforces that for every file in marks/.
+  const SAFE = ['star-2017', 'star-2018', 'star-2020', 'star-circuit', 'star-pixel',
     'star-mindz-eye-lattice', 'star-2022'];
-  const BOX_ASPECT = 2.0;   // box width / height; caps the wide 2019 wordmark
+  const SEQ_FULL = SAFE;
+  const SEQ_GHOST = SAFE;
+  const BOX_ASPECT = 1.2;   // box width / height
   const BOX_PAD = 4;
   let marksReady = false;
 
@@ -902,15 +907,18 @@
     return m.img.decode().then(() => { m.box = contentBox(m.img); });
   })).then(() => { marksReady = true; buildRasters(); });
 
-  // Draws a mark raster centred in the box, optionally scaled about the centre,
-  // shifted, or with alpha.
+  // Draws a mark raster centred in the box, optionally scaled and rotated about
+  // its centre, shifted, or with alpha.
   function drawMark(ctx, id, o = {}) {
     const m = MARKS[id], B = flipBox();
     if (!m.raster) return;
-    const s = o.scale ?? 1, dx = o.dx ?? 0;
+    const s = o.scale ?? 1;
+    ctx.save();
     ctx.globalAlpha = o.alpha ?? 1;
-    ctx.drawImage(m.raster, L.cx - (B.RW * s) / 2 + dx, L.cy - (B.RH * s) / 2, B.RW * s, B.RH * s);
-    ctx.globalAlpha = 1;
+    ctx.translate(L.cx + (o.dx ?? 0), L.cy + (o.dy ?? 0));
+    if (o.rot) ctx.rotate(o.rot);
+    ctx.drawImage(m.raster, -(B.RW * s) / 2, -(B.RH * s) / 2, B.RW * s, B.RH * s);
+    ctx.restore();
   }
   // rotateY(deg) with perspective, approximated with vertical strips.
   function drawMarkRotY(ctx, id, deg, persp = 800) {
@@ -967,7 +975,7 @@
 
   // 7. Hard Cut Countdown
   {
-    const frames = [180, 150, 120, 100, 80, 70, 60, 60, 60];
+    const frames = [180, 150, 120, 100, 80, 70, 60];
     const tl = timeline([
       ...SEQ_FULL.map((id, i) => ({ id, dur: frames[i] / 1000 })),
       { id: null, dur: 0.12 },
@@ -1147,6 +1155,164 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Wild cards (options 12-13). Loop, cream on black, homepage size.
+  // ---------------------------------------------------------------------------
+  const markLabel = id => (id === 'final' ? 'MAIN / LOG_001' : `${MARKS[id].label[0]} / ${MARKS[id].label[1]}`);
+  function readout(ctx, text) {
+    ctx.font = `9px ${MONO}`;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillStyle = `rgba(${CREAM_RGB},0.4)`;
+    ctx.fillText(text, L.ox, L.oy + L.lh + 14);
+  }
+  function drawCreamBars(ctx, t, c, streaks) {
+    const prevT = Math.max(0, t - 1 / 60);
+    for (const r of L.rects) {
+      const g = stdGeom(r, t, c);
+      if (!g) continue;
+      if (streaks) drawStreak(ctx, r, g, stdGeom(r, prevT, c), CREAM_RGB);
+      ctx.fillStyle = CREAM;
+      ctx.fillRect(g.x, r.y, g.w, r.h);
+    }
+  }
+
+  // 12. Signal Hunt
+  {
+    const HUNT = 1.2, HOLD = 2.5, FRAME = 1 / 30, SLOW_EVERY = 4, SLOW = 0.25;
+    let st = null;
+
+    function plan(loop) {
+      const rng = mulberry32(SESSION_SEED ^ (loop * 2654435761));
+      const slow = loop % SLOW_EVERY === SLOW_EVERY - 1;
+      const segs = [];
+      let prev = null, at = 0;
+      while (at < HUNT - 1e-6) {
+        let id;
+        do id = SAFE[Math.floor(rng() * SAFE.length)]; while (id === prev);
+        const dur = slow ? SLOW : Math.min(0.06 + rng() * 0.03, HUNT - at);
+        segs.push({ kind: 'mark', id, dur });
+        prev = id;
+        at += dur;
+      }
+      segs.push({ kind: 'hold', id: 'final', dur: HOLD });
+      const B = flipBox();
+      const sliceSets = [0, 1].map(() => Array.from({ length: 4 + Math.floor(rng() * 3) }, () => {
+        const h = 2 + rng() * 10;
+        return { src: 'final', y: BOX_PAD + rng() * (B.BH - h), h, dx: (rng() < 0.5 ? -1 : 1) * (4 + rng() * 10) };
+      }));
+      segs.push({ kind: 'break', id: 'final', dur: FRAME * 2, sets: sliceSets });
+      return { loop, clock: 0, tl: timeline(segs) };
+    }
+
+    STYLES.push({
+      name: 'Signal Hunt',
+      wild: true,
+      tag: '· wild · hover or touch the mark to freeze',
+      size: 'site',
+      color: CREAM,
+      loop: Infinity,
+      phases: { inEnd: Infinity, holdEnd: Infinity, outEnd: Infinity },
+      onLoop() { st = plan(0); },
+      draw(ctx, env) {
+        const frozen = env.pointer.inside || env.pointer.pressed;
+        if (marksReady && !frozen) st.clock += env.dt;
+        while (st.clock >= st.tl.end) {
+          const over = st.clock - st.tl.end;
+          st = plan(st.loop + 1);
+          st.clock = over;
+        }
+        const seg = st.tl.at(st.clock);
+        const u = st.clock - seg.start;
+        if (seg.kind === 'mark') drawMark(ctx, seg.id);
+        else if (seg.kind === 'hold') {
+          drawMark(ctx, 'final');
+          const B = flipBox();
+          const y = Math.round(L.cy - B.BH / 2 + B.BH * (u / seg.dur)) + 0.5;
+          ctx.fillStyle = `rgba(${CREAM_RGB},0.55)`;
+          ctx.fillRect(L.cx - B.BW / 2 - 12, y - 0.5, B.BW + 24, 1);
+        } else {
+          drawMarkSlices(ctx, 'final', seg.sets[Math.min(1, Math.floor(u / FRAME))]);
+        }
+        if (frozen) readout(ctx, markLabel(seg.id));
+        else if (seg.kind === 'hold') readout(ctx, 'LOCK / LOG_001');
+      },
+    });
+  }
+
+  // 13. Exploded Archive
+  {
+    const LOOP = 7.0, P1 = 1.0, P2 = 2.2, P3 = 6.0, STAG = 0.12, FULL_LOOPS = 3;
+    const FLY = (P2 - P1) - STAG * (SAFE.length - 1);
+    const c = { inStart: P2, inDur: 1.2, inSt: 0.08, holdEnd: P3, outDur: 1.0, outSt: 0.08 };
+    let rots = [];
+
+    function ring() {
+      const mobile = L.vw <= 600;
+      const vmin = Math.min(L.vw, L.vh);
+      const R = (mobile ? 0.34 : 0.28) * vmin;
+      const scale = mobile ? 0.6 : 0.5;
+      return SAFE.map((id, i) => {
+        const a = -Math.PI / 2 + i * 2 * Math.PI / SAFE.length;
+        return { id, x: Math.cos(a) * R, y: Math.sin(a) * R, rot: rots[i] || 0, scale };
+      });
+    }
+    // Curved path from a ring slot to the centre, bowing clockwise.
+    function flyPos(p, q) {
+      const k = Math.PI / 3, cx = (p.x * Math.cos(k) - p.y * Math.sin(k)) * 0.6, cy = (p.x * Math.sin(k) + p.y * Math.cos(k)) * 0.6;
+      const m = 1 - q;
+      return { x: m * m * p.x + 2 * m * q * cx, y: m * m * p.y + 2 * m * q * cy };
+    }
+
+    STYLES.push({
+      name: 'Exploded Archive',
+      wild: true,
+      tag: '· wild · click the mark to replay',
+      size: 'site',
+      color: CREAM,
+      loop: LOOP,
+      tapToReplay: true,
+      phases: { inEnd: P2, holdEnd: P3, outEnd: LOOP },
+      holdAt: loopIndex => (loopIndex >= FULL_LOOPS ? P3 - 1e-4 : null),
+      onLoop(env) {
+        if (env.loopIndex === 0) rots = SAFE.map(() => (env.rng() * 2 - 1) * 8 * Math.PI / 180);
+      },
+      draw(ctx, env) {
+        const t = marksReady ? env.t : 0;
+        const slots = ring();
+        let center = null;
+
+        slots.forEach((s, i) => {
+          if (t < P1) {
+            const a = env.loopIndex === 0 ? 0.3 * outCubic(clamp01((t - i * 0.05) / (P1 - 0.3))) : 0.3;
+            drawMark(ctx, s.id, { dx: s.x, dy: s.y, rot: s.rot, scale: s.scale, alpha: a });
+          } else if (t < P2) {
+            const start = P1 + i * STAG;
+            if (t < start) {
+              drawMark(ctx, s.id, { dx: s.x, dy: s.y, rot: s.rot, scale: s.scale, alpha: 0.3 });
+            } else if (t < start + FLY) {
+              const q = expoIn((t - start) / FLY);
+              const p = flyPos(s, q);
+              drawMark(ctx, s.id, { dx: p.x, dy: p.y, rot: s.rot * (1 - q), scale: s.scale * (1 - 0.5 * q), alpha: 0.3 + 0.5 * q });
+            } else {
+              center = s.id;
+            }
+          } else if (t >= P3) {
+            const a = 0.3 * outCubic(clamp01((t - P3) / (LOOP - P3)));
+            drawMark(ctx, s.id, { dx: s.x, dy: s.y, rot: s.rot, scale: s.scale, alpha: a });
+          }
+        });
+
+        if (t >= P1 && t < P2) {
+          if (center) drawMark(ctx, center);
+        } else if (t >= P2) {
+          const moving = t < c.inStart + c.inDur || t >= P3;
+          drawCreamBars(ctx, t, c, moving);
+        }
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Engine
   // ---------------------------------------------------------------------------
   const reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -1157,7 +1323,7 @@
 
   let current = 0, t = 0, loopIndex = 0, last = null, rng = null;
   let gate = 0, hovering = false, touchActive = false;
-  const pointer = { x: -1, y: -1, inside: false };
+  const pointer = { x: -1, y: -1, inside: false, pressed: false };
 
   const els = {
     idx: document.getElementById('idx'),
@@ -1198,7 +1364,8 @@
     const s = style();
     els.idx.textContent = `${pad(current + 1, 2)}/${pad(STYLES.length, 2)}`;
     els.name.textContent = s.name;
-    els.tag.textContent = s.flip ? '· flip · plays once'
+    els.tag.textContent = s.tag ? s.tag
+      : s.flip ? '· flip · plays once'
       : s.hover ? (hoverAllowed() ? (hoverMQ.matches ? '· hover the logo during the hold' : '· tap or drag the logo during the hold') : '· hover off (reduced motion)') : '';
     els.opts.forEach((b, k) => b.setAttribute('aria-pressed', String(k === current)));
     els.size.disabled = !!s.size;
@@ -1254,6 +1421,8 @@
       const H = s.hover && hoverAllowed() ? s.hover : null;
       let nt = t + dt;
       if (H?.holdWhileHovering && hovering && t < s.phases.holdEnd && nt >= s.phases.holdEnd) nt = s.phases.holdEnd - 1e-4;
+      const stopAt = s.holdAt?.(loopIndex);
+      if (stopAt != null && nt >= stopAt) nt = stopAt;
       t = nt;
       if (t >= s.loop) {
         t -= s.loop;
@@ -1273,6 +1442,7 @@
       }
     }
 
+    canvas.style.cursor = s.tapToReplay && pointer.inside ? 'pointer' : '';
     render(now, dt);
     requestAnimationFrame(tick);
   }
@@ -1295,6 +1465,10 @@
     if (!isTouchInput(e)) pointer.inside = false;
   });
   canvas.addEventListener('pointerdown', e => {
+    if (hitLogo(e.clientX, e.clientY, 40)) {
+      pointer.pressed = true;
+      canvas.setPointerCapture?.(e.pointerId);
+    }
     if (!isTouchInput(e)) return;
     const H = hoverTarget();
     if (!H || !inHoldNow() || !hitLogo(e.clientX, e.clientY, 40)) return;
@@ -1303,6 +1477,10 @@
     H.touch('start', { x: e.clientX, y: e.clientY }, makeEnv(performance.now() / 1000, 0));
   });
   const endTouch = e => {
+    if (pointer.pressed) {
+      pointer.pressed = false;
+      if (e.type === 'pointerup' && style().tapToReplay && hitLogo(e.clientX, e.clientY, 40)) restart();
+    }
     if (!touchActive) return;
     touchActive = false;
     style().hover?.touch('end', { x: e.clientX, y: e.clientY }, makeEnv(performance.now() / 1000, 0));
@@ -1339,7 +1517,7 @@
   const DEFAULT_OPTION = 6;
   const requested = parseInt(new URLSearchParams(location.search).get('v') || location.hash.slice(1), 10);
   select((requested >= 1 && requested <= STYLES.length ? requested : DEFAULT_OPTION) - 1);
-  marksLoaded.then(() => { if (style().flip) restart(); });
+  marksLoaded.then(() => { if (style().flip || style().wild) restart(); });
   requestAnimationFrame(tick);
 })();
 </script>
