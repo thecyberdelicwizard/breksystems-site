@@ -1,0 +1,957 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex,nofollow">
+  <meta name="referrer" content="no-referrer">
+  <title>Logo motion preview</title>
+  <link rel="icon" type="image/png" href="../../favicon.png">
+  <style>
+    * { box-sizing: border-box; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: #000;
+      color: #fff;
+      overflow: hidden;
+      overscroll-behavior: none;
+    }
+    body {
+      font: 11px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      letter-spacing: 0.04em;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+    #stage {
+      position: fixed;
+      inset: 0;
+      display: block;
+      touch-action: none;
+    }
+    .hud {
+      position: fixed;
+      top: max(14px, env(safe-area-inset-top));
+      left: max(16px, env(safe-area-inset-left));
+      right: max(16px, env(safe-area-inset-right));
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      flex-wrap: wrap;
+      color: #ffffff99;
+      pointer-events: none;
+    }
+    .hud .name { color: #fff; text-transform: uppercase; }
+    .hud .tag { color: #ffffff66; }
+    .note { color: #ffffff99; pointer-events: auto; }
+    .note button {
+      font: inherit;
+      color: #fff;
+      background: none;
+      border: 0;
+      border-bottom: 1px solid #ffffff66;
+      padding: 0;
+      cursor: pointer;
+    }
+    .controls {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      display: flex;
+      justify-content: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      padding: 0 12px;
+    }
+    .controls button {
+      font: inherit;
+      color: #fff;
+      background: #000;
+      border: 1px solid #ffffff4d;
+      border-radius: 0;
+      min-width: 40px;
+      height: 44px;
+      padding: 0 10px;
+      cursor: pointer;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+    }
+    .controls button:hover { border-color: #ffffffb3; }
+    .controls button:focus-visible { outline: 1px solid #fff; outline-offset: 2px; }
+    .controls button[aria-pressed="true"] { background: #fff; color: #000; border-color: #fff; }
+    .controls .opt small {
+      font-size: 8px;
+      letter-spacing: 0.08em;
+      margin-top: 3px;
+      opacity: 0.7;
+    }
+    .controls .sep { width: 6px; }
+    @media (max-width: 440px) {
+      .controls { gap: 5px; padding: 0 8px; }
+      .controls button { min-width: 36px; padding: 0 7px; }
+      .controls .sep { width: 0; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="stage" aria-label="Brek Systems logo animation"></canvas>
+  <noscript><img src="../../brek-mark.png" alt="Brek Systems" style="position:fixed;inset:0;margin:auto;width:120px"></noscript>
+
+  <div class="hud" aria-live="polite">
+    <span id="idx">01/05</span>
+    <span class="name" id="name">Clean Sweep</span>
+    <span class="tag" id="tag"></span>
+    <span class="note" id="note" hidden></span>
+  </div>
+
+  <nav class="controls" aria-label="Animation options">
+    <button class="opt" data-i="0" aria-pressed="true" title="Clean Sweep">1</button>
+    <button class="opt" data-i="1" aria-pressed="false" title="Signal Drop (hover)">2<small>HOVER</small></button>
+    <button class="opt" data-i="2" aria-pressed="false" title="Scan Log (hover)">3<small>HOVER</small></button>
+    <button class="opt" data-i="3" aria-pressed="false" title="Blueprint">4</button>
+    <button class="opt" data-i="4" aria-pressed="false" title="Star Burst">5</button>
+    <span class="sep"></span>
+    <button id="replay" title="Replay (R)">Replay</button>
+    <button id="size" title="Toggle logo size">Large</button>
+  </nav>
+
+<script>
+(() => {
+  'use strict';
+
+  // ---------------------------------------------------------------------------
+  // Mark geometry: the homepage brek-mark.png (282x281) traced into one rect per
+  // line. Same numbers as brek-mark-lines.svg in this folder.
+  // ---------------------------------------------------------------------------
+  const MARK_W = 282, MARK_H = 281;
+  const BARS = [
+    [0, 133.61, 0.69, 14.64, 13.91],
+    [1, 128.71, 23.61, 24.47, 13.12],
+    [2, 117.00, 45.81, 47.76, 12.93],
+    [3, 102.69, 68.00, 76.34, 12.96],
+    [4, 81.34, 90.24, 46.60, 12.93], [4, 153.75, 90.24, 44.26, 12.95],
+    [5, 44.48, 112.21, 61.61, 13.27], [5, 175.64, 112.21, 61.63, 13.27],
+    [6, 0.82, 134.46, 83.43, 12.82], [6, 197.65, 134.46, 83.39, 12.82],
+    [7, 44.49, 156.49, 61.50, 13.09], [7, 175.66, 156.49, 61.51, 13.09],
+    [8, 83.65, 178.54, 44.26, 13.13], [8, 153.76, 178.54, 46.61, 13.11],
+    [9, 102.71, 200.78, 76.20, 12.89],
+    [10, 117.00, 223.00, 47.91, 12.93],
+    [11, 128.71, 244.85, 24.44, 13.05],
+    [12, 133.60, 267.15, 14.69, 13.82],
+  ].map(([row, x, y, w, h]) => ({ row, x, y, w, h, g: Math.abs(row - 6) }));
+  const MAX_G = 6;
+
+  // ---------------------------------------------------------------------------
+  // Math / easing
+  // ---------------------------------------------------------------------------
+  const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+  const clamp01 = v => clamp(v, 0, 1);
+  const lerp = (a, b, k) => a + (b - a) * k;
+  const smoothstep = (a, b, v) => { const k = clamp01((v - a) / (b - a)); return k * k * (3 - 2 * k); };
+  const pad = (n, len) => String(Math.max(0, Math.floor(n))).padStart(len, '0');
+
+  function cubicBezier(x1, y1, x2, y2) {
+    const cx = 3 * x1, bx = 3 * (x2 - x1) - cx, ax = 1 - cx - bx;
+    const cy = 3 * y1, by = 3 * (y2 - y1) - cy, ay = 1 - cy - by;
+    const sx = t => ((ax * t + bx) * t + cx) * t;
+    const sy = t => ((ay * t + by) * t + cy) * t;
+    const dsx = t => (3 * ax * t + 2 * bx) * t + cx;
+    return x => {
+      if (x <= 0) return 0;
+      if (x >= 1) return 1;
+      let t = x;
+      for (let i = 0; i < 8; i++) {
+        const err = sx(t) - x;
+        if (Math.abs(err) < 1e-6) return sy(t);
+        const d = dsx(t);
+        if (Math.abs(d) < 1e-6) break;
+        t -= err / d;
+      }
+      let lo = 0, hi = 1;
+      t = x;
+      while (hi - lo > 1e-6) { if (sx(t) < x) lo = t; else hi = t; t = (lo + hi) / 2; }
+      return sy(t);
+    };
+  }
+  const EASE_IN = cubicBezier(0.16, 1, 0.3, 1);     // landing
+  const EASE_OUT = cubicBezier(0.7, 0, 0.84, 0);    // leaving
+  const BACK_OUT = cubicBezier(0.34, 1.56, 0.64, 1);
+  const BACK_MAX = (() => { let m = 1; for (let i = 0; i <= 400; i++) m = Math.max(m, BACK_OUT(i / 400)); return m; })();
+  const expoOut = p => (p >= 1 ? 1 : 1 - Math.pow(2, -10 * p));
+  const expoIn = p => (p <= 0 ? 0 : Math.pow(2, 10 * p - 10));
+  const inOutCubic = p => (p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2);
+  const outCubic = p => 1 - Math.pow(1 - p, 3);
+
+  function mulberry32(a) {
+    return () => {
+      a |= 0; a = (a + 0x6D2B79F5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const SESSION_SEED = (Math.random() * 1e9) | 0;
+
+  // ---------------------------------------------------------------------------
+  // Canvas + layout
+  // ---------------------------------------------------------------------------
+  const canvas = document.getElementById('stage');
+  const main = canvas.getContext('2d');
+  const buf = document.createElement('canvas');
+  const bctx = buf.getContext('2d');
+  const MONO = 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace';
+
+  const noise = document.createElement('canvas');
+  noise.width = 512; noise.height = 64;
+  (() => {
+    const n = noise.getContext('2d');
+    const img = n.createImageData(noise.width, noise.height);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const on = Math.random() < 0.5 ? 255 : 0;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = 255;
+      img.data[i + 3] = on;
+    }
+    n.putImageData(img, 0, 0);
+  })();
+
+  let sizeMode = 'large';
+  let L = null;
+
+  function layout() {
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    canvas.width = buf.width = Math.round(vw * dpr);
+    canvas.height = buf.height = Math.round(vh * dpr);
+    canvas.style.width = vw + 'px';
+    canvas.style.height = vh + 'px';
+    const S = sizeMode === 'site'
+      ? clamp(vw * 0.18, 72, 120)          // same rule as the homepage .mark
+      : Math.max(72, Math.min(vw * 0.62, (vh - 190) * 0.85, 340));
+    const s = S / MARK_W, lw = S, lh = MARK_H * s;
+    const ox = Math.round((vw - lw) / 2), oy = Math.round((vh - lh) / 2 - 18);
+    L = {
+      vw, vh, dpr, s, ox, oy, lw, lh, cx: ox + lw / 2, cy: oy + lh / 2,
+      rects: BARS.map(b => ({ x: ox + b.x * s, y: oy + b.y * s, w: b.w * s, h: b.h * s, g: b.g, row: b.row })),
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Shared line motion. A line enters from off-screen left at scaleX 0.2 with a
+  // left origin, lands at full length, then exits with a right origin,
+  // stretching to EXIT_STRETCH times its length until it clears the right edge.
+  // Expressed as left/width rather than a transform so lines stay crisp.
+  // ---------------------------------------------------------------------------
+  const EXIT_STRETCH = 3;
+
+  function enterGeom(r, pos, scale) {
+    const start = -r.w * 0.2 - 4;
+    return { x: lerp(start, r.x, pos), w: r.w * scale };
+  }
+  function exitGeom(r, p, stretch = EXIT_STRETCH) {
+    const r0 = r.x + r.w;
+    const rEnd = L.vw + r.w * stretch + 4;
+    const right = lerp(r0, rEnd, p);
+    const w = r.w * lerp(1, stretch, p);
+    return { x: right - w, w };
+  }
+  // Progress of one line inside a phase where lines are staggered by group
+  // (distance from the middle row), with the whole phase fitting in `dur`.
+  function stag(t, start, dur, st, g) {
+    const d = dur - st * MAX_G;
+    return clamp01((t - start - g * st) / d);
+  }
+  function drawStdBars(ctx, t, c) {
+    for (const r of L.rects) {
+      let geom;
+      if (t < c.holdEnd) {
+        const p = stag(t, c.inStart, c.inDur, c.inSt, r.g);
+        if (p <= 0) continue;
+        const e = EASE_IN(p);
+        geom = enterGeom(r, e, 0.2 + 0.8 * e);
+      } else {
+        const p = stag(t, c.holdEnd, c.outDur, c.outSt, r.g);
+        if (p >= 1) continue;
+        geom = exitGeom(r, EASE_OUT(p));
+      }
+      ctx.fillRect(geom.x, r.y, geom.w, r.h);
+    }
+  }
+  function drawStaticBars(ctx) {
+    for (const r of L.rects) ctx.fillRect(r.x, r.y, r.w, r.h);
+  }
+
+  // Copies horizontal bands of the buffer onto the main canvas shifted by dx.
+  // Band coordinates are CSS px.
+  function applySlices(slices) {
+    const d = L.dpr, W = canvas.width;
+    for (const sl of slices) {
+      if (!sl.dx) continue;
+      const y = Math.round(sl.y * d), h = Math.max(1, Math.round(sl.h * d)), dx = Math.round(sl.dx * d);
+      main.fillStyle = '#000';
+      main.fillRect(0, y, W, h);
+      main.drawImage(buf, 0, y, W, h, dx, y, W, h);
+    }
+  }
+  function drawNoiseStrip(x, y, w, h) {
+    const d = L.dpr;
+    const X = Math.round(x * d), Y = Math.round(y * d), Wd = Math.round(w * d), Hd = Math.max(1, Math.round(h * d));
+    const block = 2 * d;
+    const sw = Math.max(1, Math.round(Wd / block)), sh = Math.max(1, Math.round(Hd / block));
+    const sx = Math.floor(Math.random() * Math.max(1, noise.width - sw));
+    const sy = Math.floor(Math.random() * Math.max(1, noise.height - sh));
+    main.fillStyle = '#000';
+    main.fillRect(X, Y, Wd, Hd);
+    main.imageSmoothingEnabled = false;
+    main.drawImage(noise, sx, sy, Math.min(sw, noise.width), Math.min(sh, noise.height), X, Y, Wd, Hd);
+    main.imageSmoothingEnabled = true;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Hover controllers. A style opts in with `hover: createX()`. The engine:
+  //   - only lets hover run during the style's hold phase,
+  //   - exposes env.gate (1 in hold, fades to 0 over 150 ms after the hold ends),
+  //   - calls enter/leave for mouse/pen hover over the logo, and touch(type, pt)
+  //     for touch input, picking behaviour via the (hover: hover) media query,
+  //   - calls update(env) every frame and reset() when the effect is fully off,
+  //   - honours `holdWhileHovering: true` to extend the hold while hovered.
+  // ---------------------------------------------------------------------------
+  const HIT_PAD = 24;
+  function hitLogo(x, y, pad = HIT_PAD) {
+    return x >= L.ox - pad && x <= L.ox + L.lw + pad && y >= L.oy - pad && y <= L.oy + L.lh + pad;
+  }
+
+  function createSignalHover() {
+    let st;
+    const reset = () => {
+      st = { mode: 'idle', at: 0, enterAt: 0, x: 0, y: 0, strips: [], rollAt: -1, noiseAt: -1, noiseNext: 0.3, touchUntil: 0 };
+    };
+    reset();
+
+    function rollStrips(now) {
+      const strips = [];
+      let y = L.oy - 6;
+      const end = L.oy + L.lh + 6;
+      while (y < end) {
+        const h = 2 + Math.floor(Math.random() * 5);
+        strips.push({ y, h, sign: Math.random() < 0.5 ? -1 : 1 });
+        y += h;
+      }
+      st.strips = strips;
+      st.rollAt = now;
+    }
+    function begin(now) {
+      if (st.mode === 'active') return;
+      st.mode = 'active';
+      st.enterAt = now;
+      rollStrips(now);
+    }
+    function end(now) {
+      if (st.mode !== 'active') return;
+      st.mode = 'final';
+      st.at = now;
+    }
+
+    return {
+      holdWhileHovering: false,
+      reset,
+      enter(env) { st.x = env.pointer.x; st.y = env.pointer.y; begin(env.now); },
+      leave(env) { end(env.now); },
+      touch(type, pt, env) {
+        if (type === 'end') return;
+        st.x = pt.x; st.y = pt.y;
+        st.touchUntil = env.now + 0.6;
+        begin(env.now);
+      },
+      update(env) {
+        if (env.hovering) { st.x = env.pointer.x; st.y = env.pointer.y; }
+        if (st.mode === 'active' && env.touchMode && !env.hovering && env.now > st.touchUntil) end(env.now);
+        if (st.mode === 'final' && env.now - st.at >= 0.06) { st.mode = 'snap'; st.at = env.now; }
+        if (st.mode === 'snap' && env.now - st.at >= 0.2) st.mode = 'idle';
+        if ((st.mode === 'active' || st.mode === 'final') && env.now - st.rollAt >= 0.05) rollStrips(env.now);
+      },
+      busy() { return st.mode !== 'idle'; },
+      composite(env) {
+        if (st.mode === 'idle') return;
+        let amp = 1;
+        if (st.mode === 'active' && env.now - st.enterAt < 0.08) amp = 0;
+        if (st.mode === 'snap') amp = 1 - expoOut(clamp01((env.now - st.at) / 0.2));
+        amp *= env.gate;
+        if (amp <= 0) return;
+
+        const R = 120;
+        const dxOut = Math.max(L.ox - st.x, 0, st.x - (L.ox + L.lw));
+        const slices = [];
+        for (const s of st.strips) {
+          const dy = Math.abs(s.y + s.h / 2 - st.y);
+          const d = Math.hypot(dy, dxOut);
+          if (d >= R) continue;
+          const f = 1 - smoothstep(0, R, d);
+          slices.push({ y: s.y, h: s.h, dx: Math.round(s.sign * (2 + 8 * f) * amp) });
+        }
+        applySlices(slices);
+
+        if (st.mode === 'active' && amp === 1 && env.gate === 1 && env.now - st.noiseAt >= st.noiseNext) {
+          const hit = L.rects.find(r => st.x >= r.x - 2 && st.x <= r.x + r.w + 2 && st.y >= r.y - 2 && st.y <= r.y + r.h + 2);
+          if (hit) {
+            drawNoiseStrip(hit.x - 12, hit.y, hit.w + 24, hit.h);
+            st.noiseAt = env.now;
+            st.noiseNext = 0.26 + Math.random() * 0.08;
+          }
+        }
+      },
+    };
+  }
+
+  function createScanHover() {
+    let st;
+    const reset = () => {
+      st = { mode: 'idle', at: 0, x: null, from: 0, alpha: 0, coords: false, cx: 0, cy: 0, touch: null };
+    };
+    reset();
+
+    function follow(env, x, y) {
+      if (st.mode === 'idle' || st.x === null) st.x = L.cx;
+      st.mode = 'follow';
+      st.target = x;
+      st.cx = x; st.cy = y;
+      st.coords = true;
+    }
+    function release(env) {
+      if (st.mode !== 'follow') return;
+      st.mode = 'return';
+      st.at = env.now;
+      st.from = st.x;
+      st.coords = false;
+    }
+
+    return {
+      holdWhileHovering: false,
+      reset,
+      enter(env) { follow(env, env.pointer.x, env.pointer.y); },
+      leave(env) { release(env); },
+      touch(type, pt, env) {
+        if (type === 'start') {
+          st.touch = { x0: pt.x, y0: pt.y, t0: env.now, x: pt.x, y: pt.y, dragging: false };
+        } else if (type === 'move' && st.touch) {
+          st.touch.x = pt.x; st.touch.y = pt.y;
+          if (!st.touch.dragging && Math.hypot(pt.x - st.touch.x0, pt.y - st.touch.y0) > 6) st.touch.dragging = true;
+          if (st.touch.dragging) follow(env, pt.x, pt.y);
+        } else if (type === 'end' && st.touch) {
+          if (st.touch.dragging) release(env);
+          else { st.mode = 'sweep'; st.at = env.now; st.coords = false; }
+          st.touch = null;
+        }
+      },
+      update(env) {
+        const dt = env.dt;
+        if (st.touch && !st.touch.dragging && env.now - st.touch.t0 > 0.15) {
+          st.touch.dragging = true;
+          follow(env, st.touch.x, st.touch.y);
+        }
+        if (env.hovering) { st.target = env.pointer.x; st.cx = env.pointer.x; st.cy = env.pointer.y; }
+
+        if (st.mode === 'follow') {
+          st.x += (st.target - st.x) * (1 - Math.pow(0.85, dt * 60));
+        } else if (st.mode === 'return') {
+          const k = clamp01((env.now - st.at) / 0.4);
+          st.x = lerp(st.from, L.cx, outCubic(k));
+          if (k >= 1) { st.mode = 'fade'; st.at = env.now; }
+        } else if (st.mode === 'sweep') {
+          const k = clamp01((env.now - st.at) / 0.6);
+          st.x = lerp(L.ox - 30, L.ox + L.lw + 30, k);
+          if (k >= 1) { st.mode = 'fade'; st.at = env.now; }
+        }
+
+        if (st.mode === 'follow' || st.mode === 'return' || st.mode === 'sweep') st.alpha = Math.min(1, st.alpha + dt / 0.15);
+        else if (st.mode === 'fade') {
+          st.alpha = Math.max(0, st.alpha - dt / 0.2);
+          if (st.alpha <= 0) st.mode = 'idle';
+        }
+      },
+      busy() { return st.mode !== 'idle'; },
+      lineX() { return st.x; },
+      strength(env) { return st.mode === 'idle' ? 0 : st.alpha * env.gate; },
+      label(env) {
+        return st.coords && env.gate > 0.5 ? `X:${pad(st.cx, 4)} Y:${pad(st.cy, 4)}` : null;
+      },
+    };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Styles. Each: name, loop (s), phases {inEnd, holdEnd, outEnd}, draw(ctx, env)
+  // into the buffer (CSS px), optional composite(env) onto the main canvas
+  // (device px), optional onLoop(env), optional hover controller.
+  // ---------------------------------------------------------------------------
+  const STYLES = [];
+
+  // 1. Clean Sweep
+  {
+    const c = { inStart: 0, inDur: 1.2, inSt: 0.08, holdEnd: 3.2, outDur: 1.0, outSt: 0.08 };
+    STYLES.push({
+      name: 'Clean Sweep',
+      loop: 4.5,
+      phases: { inEnd: 1.2, holdEnd: 3.2, outEnd: 4.2 },
+      draw(ctx, env) { ctx.fillStyle = '#fff'; drawStdBars(ctx, env.t, c); },
+    });
+  }
+
+  // 2. Signal Drop
+  {
+    const c = { inStart: 0, inDur: 1.0, inSt: 0.05, holdEnd: 3.2, outDur: 0.8, outSt: 0.05 };
+    let glitches = [];
+    STYLES.push({
+      name: 'Signal Drop',
+      loop: 4.5,
+      phases: { inEnd: 1.0, holdEnd: 3.2, outEnd: 4.0 },
+      hover: createSignalHover(),
+      onLoop(env) {
+        const rng = env.rng;
+        const n = rng() < 0.5 ? 2 : 3;
+        const holdStart = 1.0, hold = 2.2, seg = hold / n;
+        glitches = [];
+        for (let i = 0; i < n; i++) {
+          const start = holdStart + i * seg + 0.15 + rng() * (seg - 0.45);
+          const dur = 0.06 + rng() * 0.06;
+          const sliceSet = () => {
+            const k = 1 + Math.floor(rng() * 3);
+            return Array.from({ length: k }, () => ({
+              fy: rng(), fh: 3 + rng() * 13, dx: (rng() < 0.5 ? -1 : 1) * (4 + rng() * 8),
+            }));
+          };
+          glitches.push({
+            start, dur, a: sliceSet(), b: sliceSet(),
+            noise: { fy: rng(), h: 2 + rng() * 3, frames: rng() < 0.5 ? 1 : 2, seen: 0 },
+          });
+        }
+      },
+      draw(ctx, env) { ctx.fillStyle = '#fff'; drawStdBars(ctx, env.t, c); },
+      composite(env) {
+        if (this.hover.busy()) return;
+        const t = env.t;
+        for (const gl of glitches) {
+          if (t < gl.start || t >= gl.start + gl.dur) continue;
+          const set = t < gl.start + gl.dur / 2 ? gl.a : gl.b;
+          applySlices(set.map(s => ({ y: L.oy + s.fy * L.lh - s.fh / 2, h: s.fh, dx: s.dx })));
+          if (gl.noise.seen < gl.noise.frames) {
+            gl.noise.seen++;
+            const w = L.lw * 1.3;
+            drawNoiseStrip(L.cx - w / 2, L.oy + gl.noise.fy * L.lh, w, gl.noise.h);
+          }
+        }
+      },
+    });
+  }
+
+  // 3. Scan Log
+  {
+    const IN = 1.2, SCAN = 0.6, HOLD_END = 3.2, OUT = 1.0;
+    const bandStops = [];
+    for (let d = -40; d <= 40; d += 4) bandStops.push([(d + 40) / 80, 1 - smoothstep(20, 40, Math.abs(d))]);
+
+    STYLES.push({
+      name: 'Scan Log',
+      loop: 4.5,
+      phases: { inEnd: IN, holdEnd: HOLD_END, outEnd: HOLD_END + OUT },
+      hover: createScanHover(),
+      draw(ctx, env) {
+        const t = env.t;
+        if (t < IN) {
+          const scanX = L.vw * Math.min(1, t / SCAN);
+          const e = expoOut(t / IN);
+          ctx.save();
+          if (t < SCAN) { ctx.beginPath(); ctx.rect(0, 0, scanX, L.vh); ctx.clip(); }
+          ctx.fillStyle = '#fff';
+          for (const r of L.rects) { const g = enterGeom(r, e, 0.2 + 0.8 * e); ctx.fillRect(g.x, r.y, g.w, r.h); }
+          ctx.restore();
+          if (t < SCAN) { ctx.fillStyle = '#fff'; ctx.fillRect(Math.round(scanX), 0, 1, L.vh); }
+        } else if (t < HOLD_END) {
+          const ft = t - IN - 0.04;
+          const flicker = ft >= 0 && ft < 0.1 && !(ft >= 0.03 && ft < 0.05) ? 0.85 : 1;
+          const m = this.hover.strength(env);
+          if (m > 0) {
+            const x = this.hover.lineX();
+            ctx.fillStyle = `rgba(255,255,255,${flicker * (1 - 0.4 * m)})`;
+            drawStaticBars(ctx);
+            const grad = ctx.createLinearGradient(x - 40, 0, x + 40, 0);
+            for (const [o, a] of bandStops) grad.addColorStop(o, `rgba(255,255,255,${a * flicker})`);
+            ctx.fillStyle = grad;
+            drawStaticBars(ctx);
+            ctx.fillStyle = `rgba(255,255,255,${m})`;
+            ctx.fillRect(Math.round(x), 0, 1, L.vh);
+          } else {
+            ctx.fillStyle = `rgba(255,255,255,${flicker})`;
+            drawStaticBars(ctx);
+          }
+        } else {
+          const te = t - HOLD_END;
+          const scanX = L.vw * (te / SCAN);
+          ctx.fillStyle = '#fff';
+          for (const r of L.rects) {
+            const p = clamp01((te - SCAN * (r.x / L.vw)) / SCAN);
+            if (p >= 1) continue;
+            const g = exitGeom(r, expoIn(p));
+            ctx.fillRect(g.x, r.y, g.w, r.h);
+          }
+          if (te < SCAN) ctx.fillRect(Math.round(scanX), 0, 1, L.vh);
+          const m = this.hover.strength(env);
+          if (m > 0) {
+            ctx.fillStyle = `rgba(255,255,255,${m})`;
+            ctx.fillRect(Math.round(this.hover.lineX()), 0, 1, L.vh);
+          }
+        }
+
+        const fs = clamp(L.lw * 0.036, 9, 11);
+        ctx.font = `${fs}px ${MONO}`;
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        const label = this.hover.label(env) || 'LOG_001';
+        const y = L.oy + L.lh + Math.max(14, L.lh * 0.08);
+        ctx.fillText(label, L.ox, y);
+        ctx.fillText(`F${pad(t * 60, 4)}`, L.ox, y + fs * 1.5);
+      },
+    });
+  }
+
+  // 4. Blueprint
+  {
+    const GUIDE_DUR = 0.6, IN_START = 0.6, IN_DUR = 1.0, HOLD_END = 3.6, OUT = 1.0;
+    const c = { inStart: IN_START, inDur: IN_DUR, inSt: 0.05, holdEnd: HOLD_END, outDur: OUT, outSt: 0.05 };
+
+    function guides() {
+      const bx = L.ox, by = L.oy, bw = L.lw, bh = L.lh, cx = L.cx, cy = L.cy;
+      const ext = Math.max(24, bw * 0.14), off = Math.max(12, bw * 0.06);
+      const segs = [
+        [bx - ext, cy, bx + bw + ext, cy],
+        [cx, by - ext, cx, by + bh + ext],
+        [cx, by, bx + bw, cy], [bx + bw, cy, cx, by + bh], [cx, by + bh, bx, cy], [bx, cy, cx, by],
+        [bx, by, bx + bw, by], [bx + bw, by, bx + bw, by + bh], [bx + bw, by + bh, bx, by + bh], [bx, by + bh, bx, by],
+        [bx, by - off, bx + bw, by - off],
+        [bx - off, by, bx - off, by + bh],
+      ];
+      const ticks = [];
+      for (let i = 0; i <= 12; i++) {
+        const len = i % 6 === 0 ? 7 : 4;
+        ticks.push({ k: i / 12, seg: [bx + bw * i / 12, by - off, bx + bw * i / 12, by - off - len] });
+      }
+      for (const b of BARS) {
+        if (b.x > 141) continue;
+        const y = by + (b.y + b.h / 2) * L.s;
+        ticks.push({ k: (y - by) / bh, seg: [bx - off, y, bx - off - 4, y] });
+      }
+      return { segs, ticks, off, ext };
+    }
+
+    STYLES.push({
+      name: 'Blueprint',
+      loop: 4.8,
+      phases: { inEnd: IN_START + IN_DUR, holdEnd: HOLD_END, outEnd: HOLD_END + OUT },
+      draw(ctx, env) {
+        const t = env.t;
+        const G = guides();
+        const p = inOutCubic(clamp01(t / GUIDE_DUR));
+        const fade = t < IN_START + IN_DUR ? 1 : 1 - 0.8 * inOutCubic(clamp01((t - IN_START - IN_DUR) / 0.8));
+        ctx.save();
+        if (t >= HOLD_END) {
+          const q = EASE_OUT(clamp01((t - HOLD_END) / OUT));
+          const right = L.ox + L.lw + G.ext, width = L.lw + G.ext * 2;
+          const k = lerp(1, EXIT_STRETCH, q);
+          const d = (L.vw - right + width * EXIT_STRETCH + 10) * q;
+          ctx.translate(right + d, 0);
+          ctx.scale(k, 1);
+          ctx.translate(-right, 0);
+        }
+        if (p > 0 && t < HOLD_END + OUT) {
+          ctx.strokeStyle = `rgba(255,255,255,${0.2 * fade})`;
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          for (const [x1, y1, x2, y2] of G.segs) { ctx.moveTo(x1, y1); ctx.lineTo(lerp(x1, x2, p), lerp(y1, y2, p)); }
+          for (const tk of G.ticks) {
+            if (tk.k > p) continue;
+            const [x1, y1, x2, y2] = tk.seg;
+            ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+          }
+          ctx.stroke();
+          const fs = clamp(L.lw * 0.032, 8, 10);
+          ctx.font = `${fs}px ${MONO}`;
+          ctx.fillStyle = `rgba(255,255,255,${0.2 * fade * p})`;
+          ctx.textBaseline = 'bottom';
+          ctx.textAlign = 'center';
+          ctx.fillText(String(MARK_W), L.cx, L.oy - G.off - 9);
+          ctx.textAlign = 'right';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(String(MARK_H), L.ox - G.off - 8, L.oy + 4);
+          ctx.textAlign = 'left';
+        }
+        ctx.restore();
+        ctx.fillStyle = '#fff';
+        drawStdBars(ctx, t, c);
+      },
+    });
+  }
+
+  // 5. Star Burst
+  {
+    const IN = 0.7, IN_ST = 0.02, HOLD_END = 2.7, STAR = 0.15, OUT_START = HOLD_END + STAR, OUT = 0.6, OUT_ST = 0.02;
+    let flashedLoop = -1;
+
+    function geomAt(r, t) {
+      if (t < OUT_START) {
+        const p = stag(t, 0, IN, IN_ST, r.g);
+        if (p <= 0) return null;
+        const q = BACK_OUT(p);
+        const scale = q <= 1 ? 0.2 + 0.8 * q : 1 + 0.03 * (q - 1) / (BACK_MAX - 1);
+        return enterGeom(r, Math.min(q, 1), scale);
+      }
+      const p = stag(t, OUT_START, OUT, OUT_ST, r.g);
+      if (p >= 1) return null;
+      return exitGeom(r, expoIn(p));
+    }
+    function star(ctx, x, y, R, rot) {
+      const r = R * 0.16;
+      ctx.beginPath();
+      for (let i = 0; i < 8; i++) {
+        const a = rot + i * Math.PI / 4 - Math.PI / 2;
+        const rad = i % 2 === 0 ? R : r;
+        ctx.lineTo(x + Math.cos(a) * rad, y + Math.sin(a) * rad);
+      }
+      ctx.closePath();
+      ctx.fill();
+    }
+
+    STYLES.push({
+      name: 'Star Burst',
+      loop: 4.5,
+      phases: { inEnd: IN, holdEnd: HOLD_END, outEnd: OUT_START + OUT },
+      onLoop() { flashedLoop = -1; },
+      draw(ctx, env) {
+        const t = env.t;
+        const prevT = Math.max(0, t - 1 / 60);
+        for (const r of L.rects) {
+          const g = geomAt(r, t);
+          if (!g) continue;
+          const moving = t < IN || t >= OUT_START;
+          if (moving) {
+            const g0 = geomAt(r, prevT);
+            const v = g0 ? Math.abs((g.x + g.w) - (g0.x + g0.w)) : 0;
+            const len = Math.min(v * 4, L.vw * 0.6);
+            if (len > 2) {
+              const grad = ctx.createLinearGradient(g.x - len, 0, g.x, 0);
+              grad.addColorStop(0, 'rgba(255,255,255,0)');
+              grad.addColorStop(1, 'rgba(255,255,255,0.45)');
+              ctx.fillStyle = grad;
+              ctx.fillRect(g.x - len, r.y + r.h * 0.2, len, r.h * 0.6);
+            }
+          }
+          ctx.fillStyle = '#fff';
+          ctx.fillRect(g.x, r.y, g.w, r.h);
+        }
+        if (t >= HOLD_END && t < OUT_START) {
+          const u = (t - HOLD_END) / STAR;
+          ctx.fillStyle = '#fff';
+          star(ctx, L.cx, L.cy, Math.max(12, L.lw * 0.14) * Math.sin(Math.PI * clamp(u * 1.15, 0, 1)), u * Math.PI / 9);
+        }
+      },
+      composite(env) {
+        if (env.t >= HOLD_END && env.t < OUT_START && flashedLoop !== env.loopIndex) {
+          flashedLoop = env.loopIndex;
+          main.fillStyle = '#fff';
+          main.fillRect(0, 0, canvas.width, canvas.height);
+        }
+      },
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Engine
+  // ---------------------------------------------------------------------------
+  const reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
+  const hoverMQ = window.matchMedia('(hover: hover)');
+  let forceMotion = false;
+  const motionOn = () => forceMotion || !reduceMQ.matches;
+  const hoverAllowed = () => !reduceMQ.matches;
+
+  let current = 0, t = 0, loopIndex = 0, last = null, rng = null;
+  let gate = 0, hovering = false, touchActive = false;
+  const pointer = { x: -1, y: -1, inside: false };
+
+  const els = {
+    idx: document.getElementById('idx'),
+    name: document.getElementById('name'),
+    tag: document.getElementById('tag'),
+    note: document.getElementById('note'),
+    opts: [...document.querySelectorAll('.opt')],
+    size: document.getElementById('size'),
+  };
+
+  const style = () => STYLES[current];
+  function phaseOf(s, tt) {
+    if (tt < s.phases.inEnd) return 'in';
+    if (tt < s.phases.holdEnd) return 'hold';
+    if (tt < s.phases.outEnd) return 'out';
+    return 'gap';
+  }
+  function makeEnv(now, dt) {
+    const s = style();
+    return {
+      t, dt, now, loopIndex, rng, L, pointer, gate, hovering,
+      phase: phaseOf(s, t),
+      touchMode: touchActive || !hoverMQ.matches,
+    };
+  }
+  function startLoop(now) {
+    rng = mulberry32(SESSION_SEED + loopIndex * 7919 + current * 104729);
+    style().onLoop?.(makeEnv(now, 0));
+  }
+  function restart() {
+    t = 0; loopIndex = 0; gate = 0; hovering = false;
+    style().hover?.reset();
+    startLoop(performance.now() / 1000);
+  }
+
+  function select(i) {
+    current = (i + STYLES.length) % STYLES.length;
+    const s = style();
+    els.idx.textContent = `${pad(current + 1, 2)}/${pad(STYLES.length, 2)}`;
+    els.name.textContent = s.name;
+    els.tag.textContent = s.hover ? (hoverAllowed() ? (hoverMQ.matches ? '· hover the logo during the hold' : '· tap or drag the logo during the hold') : '· hover off (reduced motion)') : '';
+    els.opts.forEach((b, k) => b.setAttribute('aria-pressed', String(k === current)));
+    history.replaceState(null, '', '#' + (current + 1));
+    restart();
+  }
+
+  function updateNote() {
+    if (reduceMQ.matches && !forceMotion) {
+      els.note.hidden = false;
+      els.note.innerHTML = '· reduced motion: static logo <button type="button">play anyway</button>';
+      els.note.querySelector('button').onclick = () => { forceMotion = true; updateNote(); restart(); };
+    } else {
+      els.note.hidden = true;
+    }
+  }
+
+  function render(now, dt) {
+    const s = style();
+    bctx.setTransform(L.dpr, 0, 0, L.dpr, 0, 0);
+    bctx.fillStyle = '#000';
+    bctx.fillRect(0, 0, L.vw, L.vh);
+
+    if (!motionOn()) {
+      bctx.fillStyle = '#fff';
+      drawStaticBars(bctx);
+      main.setTransform(1, 0, 0, 1, 0, 0);
+      main.drawImage(buf, 0, 0);
+      return;
+    }
+
+    const env = makeEnv(now, dt);
+    s.draw(bctx, env);
+    main.setTransform(1, 0, 0, 1, 0, 0);
+    main.drawImage(buf, 0, 0);
+    s.composite?.(env);
+    s.hover?.composite?.(env);
+  }
+
+  function tick(nowMs) {
+    const now = nowMs / 1000;
+    const dt = last === null ? 0 : Math.min(0.1, now - last);
+    last = now;
+    const s = style();
+
+    if (motionOn()) {
+      const H = s.hover && hoverAllowed() ? s.hover : null;
+      let nt = t + dt;
+      if (H?.holdWhileHovering && hovering && t < s.phases.holdEnd && nt >= s.phases.holdEnd) nt = s.phases.holdEnd - 1e-4;
+      t = nt;
+      if (t >= s.loop) {
+        t -= s.loop;
+        loopIndex++;
+        startLoop(now);
+      }
+
+      if (H) {
+        const inHold = phaseOf(s, t) === 'hold';
+        gate = inHold ? 1 : Math.max(0, gate - dt / 0.15);
+        const want = inHold && pointer.inside && !touchActive && hoverMQ.matches;
+        const env = makeEnv(now, dt);
+        if (want && !hovering) { hovering = true; env.hovering = true; H.enter(env); }
+        else if (!want && hovering) { hovering = false; env.hovering = false; if (inHold) H.leave(env); }
+        H.update(env);
+        if (!inHold && gate === 0 && H.busy()) H.reset();
+      }
+    }
+
+    render(now, dt);
+    requestAnimationFrame(tick);
+  }
+
+  // Input ---------------------------------------------------------------------
+  const isTouchInput = e => e.pointerType === 'touch' || !hoverMQ.matches;
+  const inHoldNow = () => phaseOf(style(), t) === 'hold';
+  const hoverTarget = () => (motionOn() && hoverAllowed() ? style().hover : null);
+
+  canvas.addEventListener('pointermove', e => {
+    if (isTouchInput(e)) {
+      const H = hoverTarget();
+      if (touchActive && H && inHoldNow()) H.touch('move', { x: e.clientX, y: e.clientY }, makeEnv(performance.now() / 1000, 0));
+      return;
+    }
+    pointer.x = e.clientX; pointer.y = e.clientY;
+    pointer.inside = hitLogo(e.clientX, e.clientY);
+  });
+  canvas.addEventListener('pointerleave', e => {
+    if (!isTouchInput(e)) pointer.inside = false;
+  });
+  canvas.addEventListener('pointerdown', e => {
+    if (!isTouchInput(e)) return;
+    const H = hoverTarget();
+    if (!H || !inHoldNow() || !hitLogo(e.clientX, e.clientY, 40)) return;
+    touchActive = true;
+    canvas.setPointerCapture?.(e.pointerId);
+    H.touch('start', { x: e.clientX, y: e.clientY }, makeEnv(performance.now() / 1000, 0));
+  });
+  const endTouch = e => {
+    if (!touchActive) return;
+    touchActive = false;
+    style().hover?.touch('end', { x: e.clientX, y: e.clientY }, makeEnv(performance.now() / 1000, 0));
+  };
+  canvas.addEventListener('pointerup', endTouch);
+  canvas.addEventListener('pointercancel', endTouch);
+
+  els.opts.forEach(b => b.addEventListener('click', () => select(+b.dataset.i)));
+  document.getElementById('replay').addEventListener('click', restart);
+  els.size.addEventListener('click', () => {
+    sizeMode = sizeMode === 'large' ? 'site' : 'large';
+    els.size.textContent = sizeMode === 'large' ? 'Large' : 'Site size';
+    layout();
+    restart();
+  });
+  window.addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'ArrowRight') { select(current + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft') { select(current - 1); e.preventDefault(); }
+    else if (/^[1-5]$/.test(e.key)) select(+e.key - 1);
+    else if (e.key === 'r' || e.key === 'R') restart();
+  });
+  window.addEventListener('resize', () => { layout(); });
+  window.addEventListener('hashchange', () => {
+    const n = parseInt(location.hash.slice(1), 10);
+    if (n >= 1 && n <= STYLES.length && n - 1 !== current) select(n - 1);
+  });
+  const onMQ = () => { updateNote(); select(current); };
+  reduceMQ.addEventListener?.('change', onMQ);
+  hoverMQ.addEventListener?.('change', onMQ);
+
+  layout();
+  updateNote();
+  const fromHash = parseInt(location.hash.slice(1), 10);
+  select(fromHash >= 1 && fromHash <= STYLES.length ? fromHash - 1 : 0);
+  requestAnimationFrame(tick);
+})();
+</script>
+</body>
+</html>

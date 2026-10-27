@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 282 281" width="282" height="281" fill="#FFFFFF">
+  <title>Brek Systems mark (one rect per line)</title>
+  <rect id="line-01" data-row="0" x="133.61" y="0.69" width="14.64" height="13.91"/>
+  <rect id="line-02" data-row="1" x="128.71" y="23.61" width="24.47" height="13.12"/>
+  <rect id="line-03" data-row="2" x="117" y="45.81" width="47.76" height="12.93"/>
+  <rect id="line-04" data-row="3" x="102.69" y="68" width="76.34" height="12.96"/>
+  <rect id="line-05" data-row="4" x="81.34" y="90.24" width="46.6" height="12.93"/>
+  <rect id="line-06" data-row="4" x="153.75" y="90.24" width="44.26" height="12.95"/>
+  <rect id="line-07" data-row="5" x="44.48" y="112.21" width="61.61" height="13.27"/>
+  <rect id="line-08" data-row="5" x="175.64" y="112.21" width="61.63" height="13.27"/>
+  <rect id="line-09" data-row="6" x="0.82" y="134.46" width="83.43" height="12.82"/>
+  <rect id="line-10" data-row="6" x="197.65" y="134.46" width="83.39" height="12.82"/>
+  <rect id="line-11" data-row="7" x="44.49" y="156.49" width="61.5" height="13.09"/>
+  <rect id="line-12" data-row="7" x="175.66" y="156.49" width="61.51" height="13.09"/>
+  <rect id="line-13" data-row="8" x="83.65" y="178.54" width="44.26" height="13.13"/>
+  <rect id="line-14" data-row="8" x="153.76" y="178.54" width="46.61" height="13.11"/>
+  <rect id="line-15" data-row="9" x="102.71" y="200.78" width="76.2" height="12.89"/>
+  <rect id="line-16" data-row="10" x="117" y="223" width="47.91" height="12.93"/>
+  <rect id="line-17" data-row="11" x="128.71" y="244.85" width="24.44" height="13.05"/>
+  <rect id="line-18" data-row="12" x="133.6" y="267.15" width="14.69" height="13.82"/>
+</svg>
