@@ -91,11 +91,13 @@
       margin-top: 3px;
       opacity: 0.7;
     }
-    .controls .sep { width: 6px; }
+    .controls { column-gap: 14px; row-gap: 6px; }
+    .controls .grp { display: flex; gap: 6px; align-items: center; }
+    .controls .glabel { font-size: 9px; letter-spacing: 0.1em; color: #ffffff66; margin-right: 2px; }
     @media (max-width: 440px) {
-      .controls { gap: 4px; padding: 0 6px; }
-      .controls button { min-width: 32px; padding: 0 6px; }
-      .controls .sep { width: 0; }
+      .controls { padding: 0 6px; }
+      .controls .grp { gap: 4px; }
+      .controls button { min-width: 32px; height: 40px; padding: 0 6px; }
     }
   </style>
 </head>
@@ -111,15 +113,27 @@
   </div>
 
   <nav class="controls" aria-label="Animation options">
-    <button class="opt" data-i="0" aria-pressed="true" title="Clean Sweep">1</button>
-    <button class="opt" data-i="1" aria-pressed="false" title="Signal Drop (hover)">2<small>HOVER</small></button>
-    <button class="opt" data-i="2" aria-pressed="false" title="Scan Log (hover)">3<small>HOVER</small></button>
-    <button class="opt" data-i="3" aria-pressed="false" title="Blueprint">4</button>
-    <button class="opt" data-i="4" aria-pressed="false" title="Star Burst">5</button>
-    <button class="opt" data-i="5" aria-pressed="false" title="Final (Clean Sweep + streaks)">6<small>FINAL</small></button>
-    <span class="sep"></span>
-    <button id="replay" title="Replay (R)">Replay</button>
-    <button id="size" title="Toggle logo size">Large</button>
+    <div class="grp" role="group" aria-label="Loop">
+      <span class="glabel">LOOP</span>
+      <button class="opt" data-i="0" aria-pressed="true" title="Clean Sweep">1</button>
+      <button class="opt" data-i="1" aria-pressed="false" title="Signal Drop (hover)">2<small>HOVER</small></button>
+      <button class="opt" data-i="2" aria-pressed="false" title="Scan Log (hover)">3<small>HOVER</small></button>
+      <button class="opt" data-i="3" aria-pressed="false" title="Blueprint">4</button>
+      <button class="opt" data-i="4" aria-pressed="false" title="Star Burst">5</button>
+      <button class="opt" data-i="5" aria-pressed="false" title="Final (Clean Sweep + streaks)">6<small>FINAL</small></button>
+    </div>
+    <div class="grp" role="group" aria-label="Flip">
+      <span class="glabel">FLIP</span>
+      <button class="opt" data-i="6" aria-pressed="false" title="Hard Cut Countdown">7</button>
+      <button class="opt" data-i="7" aria-pressed="false" title="Flipbook 3D">8</button>
+      <button class="opt" data-i="8" aria-pressed="false" title="Archive Scan">9</button>
+      <button class="opt" data-i="9" aria-pressed="false" title="Glitch Swap">10</button>
+      <button class="opt" data-i="10" aria-pressed="false" title="Ghost Stack">11</button>
+    </div>
+    <div class="grp">
+      <button id="replay" title="Replay (R)">Replay</button>
+      <button id="size" title="Toggle logo size">Large</button>
+    </div>
   </nav>
 
 <script>
@@ -240,6 +254,7 @@
       vw, vh, dpr, s, ox, oy, lw, lh, cx: ox + lw / 2, cy: oy + lh / 2,
       rects: BARS.map(b => ({ x: ox + b.x * s, y: oy + b.y * s, w: b.w * s, h: b.h * s, g: b.g, row: b.row })),
     };
+    buildRasters();
   }
 
   // ---------------------------------------------------------------------------
@@ -796,6 +811,342 @@
   }
 
   // ---------------------------------------------------------------------------
+  // Flip intros (options 7-11). Play once through past Brek marks, then hold
+  // the homepage mark. Every mark is rasterised into the same box, its content
+  // fitted to the homepage mark's height, so cuts don't jump.
+  // ---------------------------------------------------------------------------
+  const CREAM = '#F5F0E8', CREAM_RGB = '245,240,232';
+  const MARKS = {
+    'star-2017': { src: 'marks/star-2017.svg', label: ['BREK_STAR', '2017'] },
+    'star-2018': { src: 'marks/star-2018.svg', label: ['BREK_STAR', '2018'] },
+    'wordmark-2019': { src: 'marks/wordmark-brek-systems-2019.png', label: ['BREK_WORDMARK', '2019'] },
+    'star-2018-boxed': { src: 'marks/star-2018-boxed.svg', label: ['BREK_STAR_BOXED', '2018'] },
+    'star-2020': { src: 'marks/star-2020.svg', label: ['BREK_STAR', '2020'] },
+    'star-circuit': { src: 'marks/star-circuit.svg', label: ['BREK_STAR_CIRCUIT', '----'] },
+    'star-pixel': { src: 'marks/star-pixel.svg', label: ['BREK_STAR_PIXEL', '----'] },
+    'star-mindz-eye-lattice': { src: 'marks/star-mindz-eye-lattice.svg', label: ['MINDZ_EYE', '----'] },
+    'star-2022': { src: 'marks/star-2022.svg', label: ['BREK_STAR', '2022'] },
+    'final': {
+      src: 'data:image/svg+xml,' + encodeURIComponent(
+        `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${MARK_W} ${MARK_H}" width="${MARK_W * 4}" height="${MARK_H * 4}" fill="${CREAM}">` +
+        BARS.map(b => `<rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}"/>`).join('') + '</svg>'),
+    },
+  };
+  const SEQ_FULL = ['star-2017', 'star-2018', 'wordmark-2019', 'star-2018-boxed', 'star-2020',
+    'star-circuit', 'star-pixel', 'star-mindz-eye-lattice', 'star-2022'];
+  const SEQ_GHOST = ['star-2017', 'star-2018', 'star-2020', 'star-circuit', 'star-pixel',
+    'star-mindz-eye-lattice', 'star-2022'];
+  const BOX_ASPECT = 2.0;   // box width / height; caps the wide 2019 wordmark
+  const BOX_PAD = 4;
+  let marksReady = false;
+
+  const creamNoise = document.createElement('canvas');
+  creamNoise.width = 256; creamNoise.height = 32;
+  (() => {
+    const n = creamNoise.getContext('2d');
+    const img = n.createImageData(creamNoise.width, creamNoise.height);
+    for (let i = 0; i < img.data.length; i += 4) {
+      img.data[i] = 245; img.data[i + 1] = 240; img.data[i + 2] = 232;
+      img.data[i + 3] = Math.random() < 0.5 ? 255 : 0;
+    }
+    n.putImageData(img, 0, 0);
+  })();
+
+  function contentBox(img) {
+    const H = 400, W = Math.max(1, Math.round(H * img.naturalWidth / img.naturalHeight));
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const x = c.getContext('2d');
+    x.drawImage(img, 0, 0, W, H);
+    const d = x.getImageData(0, 0, W, H).data;
+    let x0 = W, y0 = H, x1 = -1, y1 = -1;
+    for (let y = 0; y < H; y++) {
+      for (let i = 0; i < W; i++) {
+        if (d[(y * W + i) * 4 + 3] > 8) {
+          if (i < x0) x0 = i; if (i > x1) x1 = i;
+          if (y < y0) y0 = y; if (y > y1) y1 = y;
+        }
+      }
+    }
+    if (x1 < 0) return { x: 0, y: 0, w: 1, h: 1 };
+    return { x: x0 / W, y: y0 / H, w: (x1 + 1 - x0) / W, h: (y1 + 1 - y0) / H };
+  }
+
+  // Box geometry in CSS px, centred on the homepage mark's position.
+  function flipBox() {
+    const BH = L.lh, BW = BH * BOX_ASPECT;
+    return { BW, BH, RW: BW + BOX_PAD * 2, RH: BH + BOX_PAD * 2, x: L.cx - BW / 2 - BOX_PAD, y: L.cy - BH / 2 - BOX_PAD };
+  }
+  function buildRasters() {
+    if (!marksReady || !L) return;
+    const B = flipBox(), d = L.dpr;
+    for (const m of Object.values(MARKS)) {
+      const c = m.raster || (m.raster = document.createElement('canvas'));
+      c.width = Math.round(B.RW * d); c.height = Math.round(B.RH * d);
+      const x = c.getContext('2d');
+      x.setTransform(d, 0, 0, d, 0, 0);
+      x.clearRect(0, 0, B.RW, B.RH);
+      const nw = m.img.naturalWidth, nh = m.img.naturalHeight, cb = m.box;
+      const aspect = (cb.w * nw) / (cb.h * nh);
+      let h = B.BH, w = h * aspect;
+      if (w > B.BW) { w = B.BW; h = w / aspect; }
+      const k = h / (cb.h * nh);
+      const dx = B.RW / 2 - (cb.x + cb.w / 2) * nw * k;
+      const dy = B.RH / 2 - (cb.y + cb.h / 2) * nh * k;
+      x.drawImage(m.img, dx, dy, nw * k, nh * k);
+    }
+  }
+  const marksLoaded = Promise.all(Object.values(MARKS).map(m => {
+    m.img = new Image();
+    m.img.src = m.src;
+    return m.img.decode().then(() => { m.box = contentBox(m.img); });
+  })).then(() => { marksReady = true; buildRasters(); });
+
+  // Draws a mark raster centred in the box, optionally scaled about the centre,
+  // shifted, or with alpha.
+  function drawMark(ctx, id, o = {}) {
+    const m = MARKS[id], B = flipBox();
+    if (!m.raster) return;
+    const s = o.scale ?? 1, dx = o.dx ?? 0;
+    ctx.globalAlpha = o.alpha ?? 1;
+    ctx.drawImage(m.raster, L.cx - (B.RW * s) / 2 + dx, L.cy - (B.RH * s) / 2, B.RW * s, B.RH * s);
+    ctx.globalAlpha = 1;
+  }
+  // rotateY(deg) with perspective, approximated with vertical strips.
+  function drawMarkRotY(ctx, id, deg, persp = 800) {
+    const m = MARKS[id], B = flipBox();
+    if (!m.raster) return;
+    const th = deg * Math.PI / 180, cos = Math.cos(th), sin = Math.sin(th);
+    if (cos <= 0.001) return;
+    const N = 48, sw = B.RW / N, kx = m.raster.width / B.RW;
+    const proj = x => x * cos * persp / (persp + x * sin);
+    for (let i = 0; i < N; i++) {
+      const xa = -B.RW / 2 + i * sw, xb = xa + sw, xm = xa + sw / 2;
+      const pa = proj(xa), pb = proj(xb);
+      const ph = B.RH * persp / (persp + xm * sin);
+      ctx.drawImage(m.raster, i * sw * kx, 0, sw * kx, m.raster.height,
+        L.cx + pa, L.cy - ph / 2, pb - pa + 0.6, ph);
+    }
+  }
+  // Draws `base` then re-draws horizontal slices (CSS px from the box top)
+  // taken from each slice's own source mark, shifted by dx.
+  function drawMarkSlices(ctx, base, slices) {
+    const B = flipBox();
+    if (base) drawMark(ctx, base);
+    for (const s of slices) {
+      const m = MARKS[s.src];
+      if (!m.raster) continue;
+      const ky = m.raster.height / B.RH;
+      ctx.fillStyle = '#000';
+      ctx.fillRect(B.x - 20, B.y + s.y, B.RW + 40, s.h);
+      ctx.drawImage(m.raster, 0, s.y * ky, m.raster.width, s.h * ky, B.x + s.dx, B.y + s.y, B.RW, s.h);
+    }
+  }
+  function drawCreamNoise(ctx, x, y, w, h) {
+    const sw = Math.max(1, Math.round(w / 2)), sh = Math.max(1, Math.round(h / 2));
+    const sx = Math.floor(Math.random() * Math.max(1, creamNoise.width - sw));
+    const sy = Math.floor(Math.random() * Math.max(1, creamNoise.height - sh));
+    ctx.fillStyle = '#000';
+    ctx.fillRect(x, y, w, h);
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(creamNoise, sx, sy, Math.min(sw, creamNoise.width), Math.min(sh, creamNoise.height), x, y, w, h);
+    ctx.imageSmoothingEnabled = true;
+  }
+  // Sequential segments: [{id, dur, ...}] -> segment active at t (or null).
+  function timeline(segs) {
+    let at = 0;
+    for (const s of segs) { s.start = at; at += s.dur; s.end = at; }
+    return { segs, end: at, at: t => segs.find(s => t >= s.start && t < s.end) || null };
+  }
+  function flipStyle(o) {
+    return Object.assign({
+      flip: true, once: true, size: 'site', color: CREAM, loop: Infinity,
+      phases: { inEnd: Infinity, holdEnd: Infinity, outEnd: Infinity },
+    }, o);
+  }
+
+  // 7. Hard Cut Countdown
+  {
+    const frames = [180, 150, 120, 100, 80, 70, 60, 60, 60];
+    const tl = timeline([
+      ...SEQ_FULL.map((id, i) => ({ id, dur: frames[i] / 1000 })),
+      { id: null, dur: 0.12 },
+    ]);
+    STYLES.push(flipStyle({
+      name: 'Hard Cut Countdown',
+      total: tl.end,
+      draw(ctx, env) {
+        const seg = tl.at(env.t);
+        if (env.t >= tl.end) drawMark(ctx, 'final');
+        else if (seg && seg.id) drawMark(ctx, seg.id);
+      },
+    }));
+  }
+
+  // 8. Flipbook 3D
+  {
+    const LEAD = 0.2, SETTLE = 0.2, FINAL_FLIP = 0.4;
+    const flips = SEQ_FULL.slice(0, -1).map((id, k) => ({ from: id, to: SEQ_FULL[k + 1], dur: Math.max(0.09, 0.26 * Math.pow(0.85, k)) }));
+    const tl = timeline([{ lead: true, dur: LEAD }, ...flips, { from: SEQ_FULL[SEQ_FULL.length - 1], to: 'final', dur: FINAL_FLIP, last: true }]);
+    const inOutQuad = p => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+    STYLES.push(flipStyle({
+      name: 'Flipbook 3D',
+      total: tl.end + SETTLE,
+      draw(ctx, env) {
+        const t = env.t;
+        if (t >= tl.end) {
+          const k = clamp01((t - tl.end) / SETTLE);
+          drawMarkRotY(ctx, 'final', 2 * (1 - outCubic(k)));
+          return;
+        }
+        const seg = tl.at(t);
+        if (seg.lead) { drawMark(ctx, SEQ_FULL[0]); return; }
+        const e = inOutQuad((t - seg.start) / seg.dur);
+        const deg = (seg.last ? 182 : 180) * e;
+        if (deg < 90) drawMarkRotY(ctx, seg.from, deg);
+        else drawMarkRotY(ctx, seg.to, deg - 180);
+      },
+    }));
+  }
+
+  // 9. Archive Scan
+  {
+    const n = SEQ_FULL.length;
+    const tl = timeline(SEQ_FULL.map((id, i) => ({
+      id, dur: (90 + 130 * (1 - Math.pow(i / (n - 1), 2))) / 1000,
+      text: `${MARKS[id].label[0]} / ${MARKS[id].label[1]} / FILE ${pad(i + 1, 2)}`,
+    })));
+    const LAND = 'MAIN / LOG_001', TYPE = 0.3;
+    STYLES.push(flipStyle({
+      name: 'Archive Scan',
+      total: tl.end + TYPE,
+      draw(ctx, env) {
+        const t = env.t;
+        let text;
+        if (t >= tl.end) {
+          drawMark(ctx, 'final');
+          const k = clamp01((t - tl.end) / TYPE);
+          text = LAND.slice(0, Math.round(LAND.length * k)) + (k < 1 ? '_' : '');
+        } else {
+          const seg = tl.at(t);
+          drawMark(ctx, seg.id);
+          text = seg.text;
+        }
+        const fs = 9;
+        ctx.font = `${fs}px ${MONO}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillStyle = `rgba(${CREAM_RGB},0.4)`;
+        ctx.fillText(text, L.cx, L.cy + L.lh / 2 + 14);
+        ctx.textAlign = 'left';
+      },
+    }));
+  }
+
+  // 10. Glitch Swap
+  {
+    const FRAME = 1 / 30, LAST_GLITCH = 0.1;
+    const ids = [...SEQ_FULL, 'final'];
+    const segs = [];
+    SEQ_FULL.forEach((id, i) => {
+      segs.push({ kind: 'hold', id, dur: (140 - 40 * i / (SEQ_FULL.length - 1)) / 1000 });
+      segs.push({ kind: 'swap', from: id, to: ids[i + 1], dur: FRAME * 2 });
+    });
+    segs.push({ kind: 'glitch', id: 'final', dur: LAST_GLITCH });
+    const tl = timeline(segs);
+    let lockShown = false;
+
+    function sliceSet(rng, srcs) {
+      const B = flipBox();
+      const k = 4 + Math.floor(rng() * 3);
+      return Array.from({ length: k }, () => {
+        const h = 2 + rng() * 10;
+        return {
+          src: srcs[Math.floor(rng() * srcs.length)],
+          y: BOX_PAD + rng() * (B.BH - h), h,
+          dx: (rng() < 0.5 ? -1 : 1) * (4 + rng() * 10),
+        };
+      });
+    }
+
+    STYLES.push(flipStyle({
+      name: 'Glitch Swap',
+      total: tl.end,
+      onLoop(env) {
+        lockShown = false;
+        const rng = env.rng;
+        for (const s of tl.segs) {
+          if (s.kind === 'swap') {
+            s.sets = [sliceSet(rng, [s.from, s.to]), sliceSet(rng, [s.from, s.to])];
+            s.noise = { y: BOX_PAD + rng() * flipBox().BH, h: 2 + rng() * 2, drawn: false };
+          } else if (s.kind === 'glitch') {
+            s.sets = [0, 1, 2].map(() => sliceSet(rng, ['final']));
+          }
+        }
+      },
+      draw(ctx, env) {
+        const t = env.t;
+        if (t >= tl.end) {
+          const alpha = lockShown ? 1 : 0.7;
+          lockShown = true;
+          drawMark(ctx, 'final', { alpha });
+          return;
+        }
+        const seg = tl.at(t);
+        const u = t - seg.start;
+        if (seg.kind === 'hold') drawMark(ctx, seg.id);
+        else if (seg.kind === 'swap') {
+          const second = u >= FRAME;
+          drawMarkSlices(ctx, second ? seg.to : seg.from, seg.sets[second ? 1 : 0]);
+          if (!seg.noise.drawn) {
+            seg.noise.drawn = true;
+            const B = flipBox();
+            drawCreamNoise(ctx, B.x, B.y + seg.noise.y, B.RW, seg.noise.h);
+          }
+        } else {
+          drawMarkSlices(ctx, 'final', seg.sets[Math.min(2, Math.floor(u / FRAME))]);
+        }
+      },
+    }));
+  }
+
+  // 11. Ghost Stack
+  {
+    const n = SEQ_GHOST.length, GHOST = 0.4, ARRIVE = 0.6;
+    const tl = timeline(SEQ_GHOST.map((id, i) => ({ id, dur: (180 - 60 * i / (n - 1)) / 1000 })));
+    const c = { inStart: tl.end, inDur: ARRIVE, inSt: 0.02, holdEnd: Infinity };
+    const arriveGeom = (r, t) => {
+      const p = stag(t, c.inStart, c.inDur, c.inSt, r.g);
+      if (p <= 0) return null;
+      const e = expoOut(p);
+      return enterGeom(r, e, 0.2 + 0.8 * e);
+    };
+    STYLES.push(flipStyle({
+      name: 'Ghost Stack',
+      total: tl.end + Math.max(ARRIVE, GHOST),
+      draw(ctx, env) {
+        const t = env.t;
+        for (const s of tl.segs) {
+          if (t < s.end || t >= s.end + GHOST) continue;
+          const k = outCubic((t - s.end) / GHOST);
+          drawMark(ctx, s.id, { alpha: 0.15 * (1 - k), scale: 1 + 0.04 * k, dx: 6 * k });
+        }
+        const seg = tl.at(t);
+        if (seg) { drawMark(ctx, seg.id); return; }
+        if (t < tl.end) return;
+        const prevT = Math.max(0, t - 1 / 60);
+        for (const r of L.rects) {
+          const g = arriveGeom(r, t);
+          if (!g) continue;
+          if (t < c.inStart + c.inDur) drawStreak(ctx, r, g, arriveGeom(r, prevT), CREAM_RGB);
+          ctx.fillStyle = CREAM;
+          ctx.fillRect(g.x, r.y, g.w, r.h);
+        }
+      },
+    }));
+  }
+
+  // ---------------------------------------------------------------------------
   // Engine
   // ---------------------------------------------------------------------------
   const reduceMQ = window.matchMedia('(prefers-reduced-motion: reduce)');
@@ -847,11 +1198,12 @@
     const s = style();
     els.idx.textContent = `${pad(current + 1, 2)}/${pad(STYLES.length, 2)}`;
     els.name.textContent = s.name;
-    els.tag.textContent = s.hover ? (hoverAllowed() ? (hoverMQ.matches ? '· hover the logo during the hold' : '· tap or drag the logo during the hold') : '· hover off (reduced motion)') : '';
+    els.tag.textContent = s.flip ? '· flip · plays once'
+      : s.hover ? (hoverAllowed() ? (hoverMQ.matches ? '· hover the logo during the hold' : '· tap or drag the logo during the hold') : '· hover off (reduced motion)') : '';
     els.opts.forEach((b, k) => b.setAttribute('aria-pressed', String(k === current)));
     els.size.disabled = !!s.size;
     els.size.textContent = s.size ? 'Site size' : (sizeMode === 'large' ? 'Large' : 'Site size');
-    history.replaceState(null, '', '#' + (current + 1));
+    history.replaceState(null, '', location.pathname + '#' + (current + 1));
     layout();
     restart();
   }
@@ -873,8 +1225,10 @@
     bctx.fillRect(0, 0, L.vw, L.vh);
 
     if (!motionOn()) {
+      if (s.flip) bctx.globalAlpha = marksReady ? clamp01(t / 0.3) : 0;
       bctx.fillStyle = s.color || '#fff';
       drawStaticBars(bctx);
+      bctx.globalAlpha = 1;
       main.setTransform(1, 0, 0, 1, 0, 0);
       main.drawImage(buf, 0, 0);
       return;
@@ -894,7 +1248,9 @@
     last = now;
     const s = style();
 
-    if (motionOn()) {
+    if (s.flip) {
+      t = marksReady ? t + dt : 0;
+    } else if (motionOn()) {
       const H = s.hover && hoverAllowed() ? s.hover : null;
       let nt = t + dt;
       if (H?.holdWhileHovering && hovering && t < s.phases.holdEnd && nt >= s.phases.holdEnd) nt = s.phases.holdEnd - 1e-4;
@@ -966,7 +1322,7 @@
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'ArrowRight') { select(current + 1); e.preventDefault(); }
     else if (e.key === 'ArrowLeft') { select(current - 1); e.preventDefault(); }
-    else if (/^[1-6]$/.test(e.key)) select(+e.key - 1);
+    else if (/^[1-9]$/.test(e.key)) select(+e.key - 1);
     else if (e.key === 'r' || e.key === 'R') restart();
   });
   window.addEventListener('resize', () => { layout(); });
@@ -980,8 +1336,10 @@
 
   layout();
   updateNote();
-  const fromHash = parseInt(location.hash.slice(1), 10);
-  select(fromHash >= 1 && fromHash <= STYLES.length ? fromHash - 1 : STYLES.length - 1);
+  const DEFAULT_OPTION = 6;
+  const requested = parseInt(new URLSearchParams(location.search).get('v') || location.hash.slice(1), 10);
+  select((requested >= 1 && requested <= STYLES.length ? requested : DEFAULT_OPTION) - 1);
+  marksLoaded.then(() => { if (style().flip) restart(); });
   requestAnimationFrame(tick);
 })();
 </script>
